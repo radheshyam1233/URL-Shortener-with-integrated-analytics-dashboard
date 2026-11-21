@@ -51,11 +51,19 @@ app.use(rateLimit({ windowMs: 60_000, limit: 180, standardHeaders: 'draft-8', le
 
 const codeValid = (code) => /^[A-Za-z0-9_-]{3,32}$/.test(code);
 function approximateLocation(req) {
-  // Render's edge provides the visitor IP before its internal proxy hops.
-  const edgeIp = process.env.RENDER === 'true' ? req.get('cf-connecting-ip') : undefined;
-  const ip = edgeIp && isIP(edgeIp) ? edgeIp : req.ip;
-  const place = ip ? geoip.lookup(ip) : null;
-  return { city: place?.city || null, country: place?.country || null };
+  const onRender = Boolean(process.env.RENDER_SERVICE_ID || process.env.RENDER === 'true');
+  const forwarded = onRender ? (req.get('x-forwarded-for') || '').split(',').map((ip) => ip.trim()) : [];
+  // On Render the visitor can appear ahead of the edge and internal proxy hops.
+  const addresses = onRender
+    ? [req.get('cf-connecting-ip'), req.get('true-client-ip'), forwarded.at(-3), req.ip]
+    : [req.ip];
+  for (const address of new Set(addresses)) {
+    if (!address || !isIP(address)) continue;
+    const place = geoip.lookup(address);
+    if (place?.country) return { city: place.city || null, country: place.country };
+  }
+  const country = onRender ? req.get('cf-ipcountry') : undefined;
+  return { city: null, country: /^[A-Z]{2}$/.test(country || '') && country !== 'XX' ? country : null };
 }
 
 const hash = (token) => crypto.createHash('sha256').update(token).digest('hex');
