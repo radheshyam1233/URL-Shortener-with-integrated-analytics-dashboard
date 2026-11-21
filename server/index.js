@@ -1,8 +1,11 @@
 import crypto from 'node:crypto';
 import { isIP } from 'node:net';
+import { readFile } from 'node:fs/promises';
+import { gunzipSync } from 'node:zlib';
 import cors from 'cors';
 import express from 'express';
 import geoip from 'geoip-lite';
+import maxmind from 'maxmind';
 import { rateLimit } from 'express-rate-limit';
 import mongoose from 'mongoose';
 import { createClient } from 'redis';
@@ -49,6 +52,14 @@ app.use(cors({ origin: FRONTEND_ORIGIN, methods: ['GET', 'POST'], allowedHeaders
 app.use(express.json({ limit: '4kb' }));
 app.use(rateLimit({ windowMs: 60_000, limit: 180, standardHeaders: 'draft-8', legacyHeaders: false, message: { error: 'Too many requests. Try again shortly.' } }));
 
+// IP Geolocation by DB-IP (https://db-ip.com), CC BY 4.0.
+const cityDatabase = await readFile(new URL('../node_modules/dbip-city-lite/dbip-city-lite.mmdb.gz', import.meta.url))
+  .then((compressed) => new maxmind.Reader(gunzipSync(compressed)))
+  .catch((error) => {
+    console.warn('Optional city database unavailable:', error.message);
+    return null;
+  });
+
 const codeValid = (code) => /^[A-Za-z0-9_-]{3,32}$/.test(code);
 function approximateLocation(req) {
   const onRender = Boolean(process.env.RENDER_SERVICE_ID || process.env.RENDER === 'true');
@@ -61,7 +72,10 @@ function approximateLocation(req) {
     if (!address || !isIP(address)) continue;
     const ip = address.replace(/^::ffff:(?=\d+\.)/i, '');
     const place = geoip.lookup(ip);
-    if (place?.country) return { city: place.city || null, country: place.country };
+    if (place?.city && place.country) return { city: place.city, country: place.country };
+    const alternate = cityDatabase?.get(ip);
+    const country = alternate?.country?.iso_code || place?.country;
+    if (country) return { city: alternate?.city?.names?.en || null, country };
   }
   const country = onRender ? req.get('cf-ipcountry') : undefined;
   return { city: null, country: /^[A-Z]{2}$/.test(country || '') && country !== 'XX' ? country : null };
