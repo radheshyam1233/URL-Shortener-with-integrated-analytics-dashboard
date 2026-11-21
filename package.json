@@ -1,1 +1,28 @@
-{"name":"url-shortener-with-integrated-analytics-dashboard","private":true,"version":"1.0.0","type":"module","engines":{"node":">=22"},"scripts":{"dev":"vite","build":"vite build","start":"node --env-file-if-exists=.env server/index.js","check":"node --check server/index.js"},"dependencies":{"cors":"^2.8.5","express":"^5.1.0","express-rate-limit":"^8.0.0","geoip-lite":"^2.0.3","lucide-react":"^0.468.0","mongoose":"^8.18.0","react":"^19.1.1","react-dom":"^19.1.1","redis":"^5.8.0"},"devDependencies":{"vite":"^7.1.0"}}
+{
+  "name": "url-shortener-with-integrated-analytics-dashboard",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "db:generate": "drizzle-kit generate"
+  },
+  "dependencies": {
+    "@netlify/database": "^2.0.3",
+    "@netlify/server": "^0.1.6",
+    "drizzle-orm": "^1.0.0-beta.22",
+    "express": "^5.1.0",
+    "express-rate-limit": "^8.0.0",
+    "lucide-react": "^0.468.0",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1"
+  },
+  "devDependencies": {
+    "drizzle-kit": "^1.0.0-beta.22",
+    "vite": "^7.1.0"
+  }
+}
