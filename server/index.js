@@ -59,7 +59,8 @@ function approximateLocation(req) {
     : [req.ip];
   for (const address of new Set(addresses)) {
     if (!address || !isIP(address)) continue;
-    const place = geoip.lookup(address);
+    const ip = address.replace(/^::ffff:(?=\d+\.)/i, '');
+    const place = geoip.lookup(ip);
     if (place?.country) return { city: place.city || null, country: place.country };
   }
   const country = onRender ? req.get('cf-ipcountry') : undefined;
@@ -127,7 +128,7 @@ async function destinationFor(code) {
   return link.url;
 }
 
-async function recordVisit(req, code, region = null) {
+async function recordVisit(req, code, region = null, sharedCity = null) {
   let referrer = 'Direct';
   try {
     const source = new URL(req.get('referer'));
@@ -136,7 +137,8 @@ async function recordVisit(req, code, region = null) {
     // Direct navigation commonly has no referrer.
   }
   try {
-    await Click.create({ code, ...approximateLocation(req), region, referrer });
+    const location = approximateLocation(req);
+    await Click.create({ code, ...location, city: sharedCity || location.city, region, referrer });
   } catch (error) {
     console.error('Click persistence failed:', error.message);
   }
@@ -154,11 +156,15 @@ app.post('/api/visit/:code', async (req, res) => {
   const { code } = req.params;
   const url = await destinationFor(code);
   if (!url) return res.status(404).json({ error: 'Short link not found.' });
-  const { latitude, longitude } = req.body ?? {};
+  const { latitude, longitude, city } = req.body ?? {};
+  const sharedCity = typeof city === 'string' ? city.trim().replace(/\s+/g, ' ') : '';
+  if (sharedCity && (sharedCity.length > 80 || !/^[\p{L}\p{M}\p{N} .'’()-]+$/u.test(sharedCity))) {
+    return res.status(400).json({ error: 'Enter a valid city name.' });
+  }
   const valid = Number.isFinite(latitude) && Math.abs(latitude) <= 90
     && Number.isFinite(longitude) && Math.abs(longitude) <= 180;
   const region = valid ? Math.round(latitude) + '°, ' + Math.round(longitude) + '°' : null;
-  await recordVisit(req, code, region);
+  await recordVisit(req, code, region, sharedCity);
   return res.set('Cache-Control', 'no-store').json({ url });
 });
 
