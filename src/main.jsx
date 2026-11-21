@@ -3,8 +3,11 @@ import { createRoot } from 'react-dom/client';
 import { Activity, ArrowUpRight, BarChart3, Clipboard, Globe2, LayoutDashboard, Link2, MousePointer2, Plus, RefreshCw } from 'lucide-react';
 import './style.css';
 
+// The API runs on the same Netlify site. Set VITE_API_URL to use another host,
+// or VITE_DEMO_MODE=true for the browser-local demo with sample data.
 const api = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
-const storeKey = api ? 'linkmetric:links:' + api : 'linkmetric:demo:v1';
+const live = import.meta.env.VITE_DEMO_MODE !== 'true';
+const storeKey = live ? 'linkmetric:links:' + (api || location.origin) : 'linkmetric:demo:v1';
 const sample = [
   { code: 'portfolio', url: 'https://example.com/portfolio', total: 764 },
   { code: 'launch-notes', url: 'https://example.com/launch-notes', total: 318 },
@@ -29,9 +32,9 @@ function shareUrl(code) {
 
 function readLinks() {
   try {
-    return JSON.parse(localStorage.getItem(storeKey)) || (api ? [] : demoLinks);
+    return JSON.parse(localStorage.getItem(storeKey)) || (live ? [] : demoLinks);
   } catch {
-    return api ? [] : demoLinks;
+    return live ? [] : demoLinks;
   }
 }
 
@@ -63,18 +66,18 @@ function getLocation() {
 function Visit({ code }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const demo = api ? null : readLinks().find((link) => link.code === code);
+  const demo = live ? null : readLinks().find((link) => link.code === code);
 
   async function open(withLocation) {
     setBusy(true);
     setError('');
     try {
-      if (api && !withLocation) {
+      if (live && !withLocation) {
         location.assign(api + '/s/' + encodeURIComponent(code));
         return;
       }
       const coords = withLocation ? await getLocation() : {};
-      if (api) {
+      if (live) {
         const result = await request('/api/visit/' + encodeURIComponent(code), json(coords));
         location.assign(result.url);
         return;
@@ -102,8 +105,8 @@ function Visit({ code }) {
   return <main className="visit-page"><section className="panel visit-card">
     <span className="brand-icon"><Link2 size={21}/></span>
     <h1>Open short link</h1>
-    <p>{api ? 'The link owner can see your approximate city and country inferred from your network. You can also choose to share rounded coordinates with browser permission.' : 'Choose whether to share your approximate location with the link owner. Your browser will ask for permission.'}</p>
-    {!api && <p className="subtle">Browser-local demo</p>}
+    <p>{live ? 'The link owner can see your approximate city and country inferred from your network. You can also choose to share rounded coordinates with browser permission.' : 'Choose whether to share your approximate location with the link owner. Your browser will ask for permission.'}</p>
+    {!live && <p className="subtle">Browser-local demo</p>}
     {error && <p role="alert" className="error">{error}</p>}
     <button className="primary" disabled={busy} onClick={() => open(false)}>{busy ? 'Opening…' : 'Continue without GPS'}</button>
     <button className="secondary" disabled={busy} onClick={() => open(true)}>Share approximate location</button>
@@ -150,7 +153,7 @@ function Dashboard() {
   }, []);
 
   useEffect(() => {
-    if (!api) return;
+    if (!live) return;
     let active = true;
     Promise.allSettled(links.map(async (link) => [link.code, await request('/api/analytics/' + link.code, {
       headers: { Authorization: 'Bearer ' + link.ownerToken },
@@ -191,8 +194,8 @@ function Dashboard() {
       if (!['http:', 'https:'].includes(destination.protocol) || destination.username || destination.password) throw new Error('Enter a valid HTTP or HTTPS URL.');
       const code = alias.trim() || crypto.randomUUID().slice(0, 8);
       if (!/^[\w-]{3,32}$/.test(code)) throw new Error('Use 3–32 letters, numbers, hyphens or underscores for the alias.');
-      if (!api && links.some((link) => link.code === code)) throw new Error('That alias is already in use.');
-      const link = api
+      if (!live && links.some((link) => link.code === code)) throw new Error('That alias is already in use.');
+      const link = live
         ? await request('/api/links', json({ url: destination.href, alias: alias.trim() }))
         : { code, url: destination.href, shortUrl: shareUrl(code), createdAt: new Date().toISOString(), total: 0, days: [], locations: [], recent: [] };
       const next = [link, ...readLinks()];
@@ -221,13 +224,13 @@ function Dashboard() {
     <aside className="sidebar">
       <a className="brand" href="#"><span className="brand-icon"><Link2 size={20}/></span>URL Shortener with Integrated Analytics Dashboard</a>
       <nav aria-label="Workspace"><a href="#overview" className="nav-active"><LayoutDashboard size={18}/> Overview</a><a href="#links"><Link2 size={18}/> My links</a><a href="#analytics"><BarChart3 size={18}/> Analytics</a></nav>
-      <div className="sidebar-foot"><div className="avatar">URL</div><div><strong>My workspace</strong><small>{api ? 'Connected dashboard' : 'Browser-local demo'}</small></div></div>
+      <div className="sidebar-foot"><div className="avatar">URL</div><div><strong>My workspace</strong><small>{live ? 'Connected dashboard' : 'Browser-local demo'}</small></div></div>
     </aside>
     <main className="main" id="overview">
       <div className="top"><span>Workspace <span className="slash">/</span> Overview</span><button className="secondary refresh" onClick={() => { setLinks(readLinks()); setRefresh(refresh + 1); }}><RefreshCw size={15}/> Refresh</button></div>
       <header><h1>Link overview</h1><p>Create short links and see how people engage with them.</p></header>
       <section className="panel create">
-        <div className="section-heading"><span className="tile violet"><Link2 size={19}/></span><div><h2>Create a short link</h2><p>{api ? 'Paste a URL. Your approximate city and country are inferred from your network.' : 'Paste a destination URL and optionally choose a custom alias.'}</p></div></div>
+        <div className="section-heading"><span className="tile violet"><Link2 size={19}/></span><div><h2>Create a short link</h2><p>{live ? 'Paste a URL. Your approximate city and country are inferred from your network.' : 'Paste a destination URL and optionally choose a custom alias.'}</p></div></div>
         <form onSubmit={create}><label>Destination URL<input type="url" required maxLength="2048" placeholder="https://example.com/your-long-url" value={url} onChange={(e) => setUrl(e.target.value)}/></label><label>Custom alias <span className="subtle">(optional)</span><input placeholder="my-link" maxLength="32" value={alias} onChange={(e) => setAlias(e.target.value)}/></label><button className="primary" disabled={saving}><Plus size={18}/>{saving ? 'Creating…' : 'Shorten URL'}</button></form>
         {error && <p className="error" role="alert">{error}</p>}
         {notice && <p className="notice" role="status">{notice}</p>}
@@ -240,11 +243,11 @@ function Dashboard() {
       <div className="analysis-grid">
         <section className="panel chart-panel"><div className="section-heading spread"><div><h2>Click activity</h2><p>Visits by day over the last 7 days (UTC)</p></div><span className="chart-key">Clicks</span></div><Chart values={values}/></section>
         <section className="panel locations"><div className="section-heading"><span className="tile green"><Globe2 size={19}/></span><div><h2>Top locations</h2><p>Approximate visitor locations</p></div></div>
-          {regions.size ? <ul>{[...regions.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([region, count]) => <li key={region}><span>{region}</span><strong>{number.format(count)}</strong></li>)}</ul> : <div className="empty"><Globe2 size={25}/><strong>No locations yet</strong><p>{api ? "City and country appear when they can be estimated from the visitor’s network." : "Open a demo short link and choose to share your location."}</p></div>}
+          {regions.size ? <ul>{[...regions.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([region, count]) => <li key={region}><span>{region}</span><strong>{number.format(count)}</strong></li>)}</ul> : <div className="empty"><Globe2 size={25}/><strong>No locations yet</strong><p>{live ? "City and country appear when they can be estimated from the visitor’s network." : "Open a demo short link and choose to share your location."}</p></div>}
         </section>
       </div>
       <section className="panel table-panel" id="links"><div className="section-heading spread"><div><h2>My links</h2><p>Open or copy the links created in this browser.</p></div><label className="filter"><span>Sort</span><select value={sort} onChange={(event) => setSort(event.target.value)}><option value="newest">Newest first</option><option value="oldest">Oldest first</option><option value="clicks">Most clicks</option><option value="alias">Alias A–Z</option></select></label></div>
-      {rows.length ? <div className="table-scroll"><table><thead><tr><th>Short link</th><th>Destination</th><th>Time created</th><th>Created from</th><th>Clicks</th><th>Actions</th></tr></thead><tbody>{sortedRows.map((link) => <tr key={link.code}><td><a className="code-link" href={link.shortUrl} target="_blank" rel="noreferrer"><Link2 size={16}/>{link.code}</a></td><td><a className="destination" href={link.url} target="_blank" rel="noreferrer" title={link.url}>{link.url}</a></td><td>{new Date(link.createdAt).toLocaleString()}</td><td>{locationLabel(link.createdCity, link.createdCountry)}</td><td>{number.format(link.total || 0)}</td><td><div className="actions"><button title="Copy short link" aria-label={'Copy short link ' + link.code} onClick={() => copy(link.shortUrl)}><Clipboard size={17}/></button>{api && <button aria-label={'Copy location opt-in link ' + link.code} title="Copy location opt-in link" onClick={() => copy(shareUrl(link.code))}><Globe2 size={17}/></button>}<a title="Open short link" aria-label={'Open short link ' + link.code} href={link.shortUrl} target="_blank" rel="noreferrer"><ArrowUpRight size={17}/></a></div></td></tr>)}</tbody></table></div> : <p className="table-empty">Your first short link will appear here.</p>}
+      {rows.length ? <div className="table-scroll"><table><thead><tr><th>Short link</th><th>Destination</th><th>Time created</th><th>Created from</th><th>Clicks</th><th>Actions</th></tr></thead><tbody>{sortedRows.map((link) => <tr key={link.code}><td><a className="code-link" href={link.shortUrl} target="_blank" rel="noreferrer"><Link2 size={16}/>{link.code}</a></td><td><a className="destination" href={link.url} target="_blank" rel="noreferrer" title={link.url}>{link.url}</a></td><td>{new Date(link.createdAt).toLocaleString()}</td><td>{locationLabel(link.createdCity, link.createdCountry)}</td><td>{number.format(link.total || 0)}</td><td><div className="actions"><button title="Copy short link" aria-label={'Copy short link ' + link.code} onClick={() => copy(link.shortUrl)}><Clipboard size={17}/></button>{live && <button aria-label={'Copy location opt-in link ' + link.code} title="Copy location opt-in link" onClick={() => copy(shareUrl(link.code))}><Globe2 size={17}/></button>}<a title="Open short link" aria-label={'Open short link ' + link.code} href={link.shortUrl} target="_blank" rel="noreferrer"><ArrowUpRight size={17}/></a></div></td></tr>)}</tbody></table></div> : <p className="table-empty">Your first short link will appear here.</p>}
       </section>
       <section className="panel table-panel"><div className="section-heading"><span className="tile violet"><Activity size={19}/></span><div><h2>Recent visits</h2><p>The latest visits for the selected links.</p></div></div>
       {recent.length ? <div className="table-scroll"><table><thead><tr><th>Link</th><th>Time</th><th>Referrer</th><th>City</th><th>Country</th><th>GPS grid</th></tr></thead><tbody>{recent.map((visit, i) => <tr key={visit.timestamp + i}><td>{visit.code}</td><td>{new Date(visit.timestamp).toLocaleString()}</td><td>{visit.referrer}</td><td>{visit.city || '—'}</td><td>{visit.country ? countryNames.of(visit.country) : '—'}</td><td>{visit.region || '—'}</td></tr>)}</tbody></table></div> : <p className="table-empty">New visits will appear here.</p>}
