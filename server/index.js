@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { isIP } from 'node:net';
 import cors from 'cors';
 import express from 'express';
 import geoip from 'geoip-lite';
@@ -50,7 +51,10 @@ app.use(rateLimit({ windowMs: 60_000, limit: 180, standardHeaders: 'draft-8', le
 
 const codeValid = (code) => /^[A-Za-z0-9_-]{3,32}$/.test(code);
 function approximateLocation(req) {
-  const place = req.ip ? geoip.lookup(req.ip) : null;
+  // Render's edge provides the visitor IP before its internal proxy hops.
+  const edgeIp = process.env.RENDER === 'true' ? req.get('cf-connecting-ip') : undefined;
+  const ip = edgeIp && isIP(edgeIp) ? edgeIp : req.ip;
+  const place = ip ? geoip.lookup(ip) : null;
   return { city: place?.city || null, country: place?.country || null };
 }
 
