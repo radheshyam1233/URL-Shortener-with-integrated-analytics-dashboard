@@ -1,40 +1,50 @@
 # URL Shortener with Integrated Analytics Dashboard
 
-A React URL shortener and analytics dashboard backed by Node.js, Express, MongoDB, and Redis. Create a random short link or custom alias, then track clicks, daily activity, referrers, and approximate visitor locations. Sort links by creation time, click count, or alias.
+[**Live Demo**](https://url-shortener-with-integrated-analy.vercel.app/)
+
+A URL shortener that helps businesses see **where their product links get clicks**. Create a shareable link for a product page or campaign, then use the dashboard to review click counts, trends, and approximate visitor locations.
+
+## Why I built it
+
+I built this project for businesses that want to make better decisions about where to promote their products. A total click count shows how much traffic a link received. A city and country breakdown shows **where that interest came from**, helping a team choose which locations to test on Google Ads, YouTube Ads, or Facebook Ads.
+
+For example, a seller can share a short link to a new product and see whether it draws more clicks from Delhi, Mumbai, or Bengaluru. If Mumbai consistently shows strong engagement, the seller can run a small geo-targeted campaign there and compare conversion rate, cost per purchase, and sales before increasing the budget. Clicks measure engagement. Purchases and revenue are measured separately in the store or ad platform.
+
+## Try it
+
+1. Open the [live dashboard](https://url-shortener-with-integrated-analy.vercel.app/) and paste a product or landing-page URL. A custom alias is optional.
+2. Click **Shorten URL** and open the generated link in another tab.
+3. In the browser that created the link, select **Refresh** and look under **Analytics** and **Recent visits**. The click count updates after the visit. City and country appear when the network location can be estimated.
+
+For campaign comparisons, create one short link per channel and label each with a recognizable alias. Use the analytics filter to compare their traffic.
+
+## Features
+
+- Short URLs with automatic codes or custom aliases and HTTP 302 redirects.
+- Total clicks, a seven-day activity chart, approximate location breakdown, and recent visits with time and referrer when available.
+- Per-link analytics and sorting by creation time, click count, or alias.
+- Request rate limiting and optional Redis caching for destination lookups.
+
+## Tech stack and deployment
+
+| Layer | Technology |
+| --- | --- |
+| Frontend | React and Vite, deployed on Vercel |
+| Backend | Node.js 22 and Express, deployed on Render |
+| Database | MongoDB Atlas for links and visit events |
+| Geolocation | IP-based city and country estimates, with optional browser-approved approximate coordinates |
+| Cache | Optional Redis cache with a MongoDB fallback |
+
+The dashboard uses a per-link analytics token stored in the browser that created the link. Short links can be shared publicly. IP-based location is approximate and may be unavailable or inaccurate when visitors use a VPN or proxy.
 
 ## Run locally
 
-1. Install Node.js 22 or newer. Start MongoDB and optionally Redis, or get connection URLs from managed providers.
-2. Run `npm ci`. Copy `.env.example` to `.env` and fill in the connection URLs. On Windows PowerShell, use `Copy-Item .env.example .env`.
-3. Run `npm start` for the Express API. In a second terminal run `npm run dev`, then open http://localhost:5173.
-4. Create a link, open its short URL, and refresh the dashboard. To check geolocation, use the globe action to copy an opt-in link, open it, choose **Share approximate location**, and approve the browser prompt.
+1. Install Node.js 22 or newer and provide a MongoDB connection string.
+2. Run `npm ci` and copy `.env.example` to `.env`. On Windows PowerShell, run `Copy-Item .env.example .env`.
+3. Set `MONGODB_URI`, `FRONTEND_ORIGIN=http://localhost:5173`, `PUBLIC_API_URL=http://localhost:3000`, and `VITE_API_URL=http://localhost:3000`. Set `REDIS_URL` if you have Redis.
+4. Run `npm start` for the API and `npm run dev` in a second terminal for the frontend. Open http://localhost:5173.
 
-For a browser-local demo with sample data, leave `VITE_API_URL` unset and run the frontend. Demo links work in the browser profile where they were created. An API-backed link works for anyone who can reach the deployed service.
-
-## Push to GitHub
-
-Extract the ZIP and open a terminal in the folder containing `package.json`. Create an empty GitHub repository without a README. Replace the example remote with your new repository URL.
-
-```sh
-git init
-git add .
-git commit -m "Add URL Shortener with Integrated Analytics Dashboard"
-git branch -M main
-git remote add origin https://github.com/YOUR_USERNAME/url-shortener-with-integrated-analytics-dashboard.git
-git push -u origin main
-```
-
-The ZIP includes the lockfile, deployment configuration, and an environment template. Keep your credentials in the local `.env` file or your hosts' environment settings.
-
-## Deploy the frontend and API
-
-1. Import the GitHub repository in Netlify. The included `netlify.toml` builds the Vite app and publishes `dist`. Record the assigned HTTPS site URL.
-2. On Render, create a Blueprint from the same repository to use `render.yaml`. Set `MONGODB_URI` and `REDIS_URL` to connection URLs accessible to Render. For the URL settings use `FRONTEND_ORIGIN=https://YOUR-SITE.netlify.app` and `PUBLIC_API_URL=https://YOUR-SERVICE.onrender.com`, with the actual assigned names and no trailing slashes. If Render assigns a different URL, update `PUBLIC_API_URL` to match and redeploy the API.
-3. Open `https://YOUR-SERVICE.onrender.com/api/health`. Check that the database and cache report `connected`.
-4. In Netlify, set `VITE_API_URL=https://YOUR-SERVICE.onrender.com` and trigger a new build. Vite reads this value at build time.
-5. Open the deployed frontend, create and open a short link from a private browser window, and refresh the original dashboard to confirm the count changes.
-
-[Netlify Vite deployment](https://docs.netlify.com/build/frameworks/framework-setup-guides/vite/) · [Render Blueprint reference](https://render.com/docs/blueprint-spec)
+For a browser-local demo with sample data, leave `VITE_API_URL` unset and run the frontend. Use `npm run check` for the API syntax check and `npm run build` to verify the production frontend build.
 
 ## How it works
 
@@ -46,10 +56,7 @@ The ZIP includes the lockfile, deployment configuration, and an environment temp
 | `GET /api/analytics/:code` | Return the click count, seven-day series, top locations, and recent visits using the owner's bearer token. |
 | `GET /api/health` | Report connectivity for MongoDB and Redis. |
 
-The dashboard stores each link's analytics token in the browser that created it. Clearing browser storage removes dashboard access to those links. The backend stores token hashes. The browser's Geolocation API requires a secure context and visitor permission. The frontend rounds coordinates to whole degrees before sending them. A visitor can continue without location, and permission denial still allows navigation. The backend automatically estimates city and country from the request IP using the bundled GeoIP database, both when creating a short link and when recording each visit. MongoDB stores the estimated city, country, and timestamps without storing raw IP addresses in the application records. VPNs, proxies, and private IP addresses can produce inaccurate or unknown locations. The dashboard displays click counts and the ten latest visits for the current selection. Rounded GPS coordinates are optional and shown separately. The browser-local demo does not perform automatic IP lookup.
+## Deploy your own instance
 
-Redis caches code-to-destination lookups for 15 minutes. MongoDB remains the source of truth. The API falls back to MongoDB when Redis is unavailable. Rate limits are 180 requests per minute overall and 15 link creations per minute per IP on a single API instance. The built-in limiter uses per-process counters.
-
-## Verification
-
-Run `npm run check` to check API syntax and `npm run build` to compile the frontend. For a deployment smoke test, create a link, open it, check that the dashboard increments, and try creating a duplicate alias to verify conflict handling.
+- **Render:** Use `npm ci --omit=dev` as the build command and `npm start` as the start command. Set `MONGODB_URI`, `FRONTEND_ORIGIN` to your Vercel production origin, and `PUBLIC_API_URL` to your Render service origin. Use the exact HTTPS origins without a trailing slash. Add Render's outbound ranges to the Atlas IP access list and verify `/api/health` on the backend.
+- **Vercel:** Import the repository as a Vite project. Set the public configuration variable `VITE_API_URL` to your Render service origin and redeploy so Vite includes it in the production build.
