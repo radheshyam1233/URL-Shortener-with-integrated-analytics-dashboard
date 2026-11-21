@@ -65,17 +65,19 @@ function Visit({ code }) {
   const [error, setError] = useState('');
   const demo = api ? null : readLinks().find((link) => link.code === code);
 
-  async function open(withLocation) {
+  const [city, setCity] = useState('');
+
+  async function open(withLocation, shareCity = false) {
     setBusy(true);
     setError('');
     try {
-      if (api && !withLocation) {
+      if (api && !withLocation && !shareCity) {
         location.assign(api + '/s/' + encodeURIComponent(code));
         return;
       }
       const coords = withLocation ? await getLocation() : {};
       if (api) {
-        const result = await request('/api/visit/' + encodeURIComponent(code), json(coords));
+        const result = await request('/api/visit/' + encodeURIComponent(code), json({ ...coords, city: shareCity ? city.trim() : undefined }));
         location.assign(result.url);
         return;
       }
@@ -103,10 +105,11 @@ function Visit({ code }) {
     <span className="brand-icon"><Link2 size={21}/></span>
     <h1>Open short link</h1>
     <p>{api ? 'The link owner can see your approximate city and country inferred from your network. You can also choose to share rounded coordinates with browser permission.' : 'Choose whether to share your approximate location with the link owner. Your browser will ask for permission.'}</p>
-    {!api && <p className="subtle">Browser-local demo</p>}
+    {api ? <label>Share your city (optional)<input value={city} onChange={(event) => setCity(event.target.value)} maxLength={80} autoComplete="address-level2" placeholder="e.g. Varanasi" /></label> : <p className="subtle">Browser-local demo</p>}
     {error && <p role="alert" className="error">{error}</p>}
-    <button className="primary" disabled={busy} onClick={() => open(false)}>{busy ? 'Opening…' : 'Continue without GPS'}</button>
-    <button className="secondary" disabled={busy} onClick={() => open(true)}>Share approximate location</button>
+    <button className="primary" disabled={busy} onClick={() => open(false)}>{busy ? 'Opening…' : 'Open without sharing'}</button>
+    {api && <button className="secondary" disabled={busy || !city.trim()} onClick={() => open(false, true)}>Share city and open</button>}
+    <button className="secondary" disabled={busy} onClick={() => open(true, true)}>Share approximate location</button>
   </section></main>;
 }
 
